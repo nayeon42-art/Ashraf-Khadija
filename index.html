@@ -256,8 +256,10 @@
     </div>
   </div>
 
-  <!-- ================= BACKGROUND RECITATION ================= -->
-  <audio id="bgAudio" loop preload="none">
+  <!-- ================= BACKGROUND RECITATION (آية الزواج فقط) ================= -->
+  <!-- الملف هو تسجيل سورة الروم الكاملة، وبالجافاسكربت أسفل الصفحة نجعله
+       يقفز مباشرة لبداية الآية ٢١ ويكرّرها هي فقط دون بقية السورة. -->
+  <audio id="bgAudio" preload="metadata">
     <source src="https://server8.mp3quran.net/download/lhdan/030.mp3" type="audio/mpeg">
   </audio>
 
@@ -265,7 +267,7 @@
     <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
     <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
   </button>
-  <span class="audio-label" id="audioLabel">تلاوة سورة الروم بصوت الشيخ محمد اللحيدان</span>
+  <span class="audio-label" id="audioLabel">آية الزواج بصوت الشيخ محمد اللحيدان</span>
 
   <main>
 
@@ -338,7 +340,7 @@
 
     <!-- ================= COUNTDOWN ================= -->
     <section class="countdown-section reveal">
-      <h2 class="section-title">موعدنا يقترب</h2>
+      <h2 class="section-title" id="countdownTitle">موعدنا يقترب</h2>
       <div class="countdown">
         <div class="time-box"><span id="days">00</span><small>يوم</small></div>
         <div class="time-box"><span id="hours">00</span><small>ساعة</small></div>
@@ -381,25 +383,53 @@
   </main>
 
   <script>
-    /* ---------- فتح الدعوة + تشغيل التلاوة ---------- */
+    /* ---------- فتح الدعوة + تشغيل آية الزواج فقط ---------- */
     const bgAudio = document.getElementById('bgAudio');
     const audioToggle = document.getElementById('audioToggle');
     const audioLabel = document.getElementById('audioLabel');
 
+    /*  ⚠️ مهم — لازم تتأكدي من الرقمين هذول بنفسك قبل ما ترسلي الدعوة:
+        AYAH_START = ثانية بداية "ومن آياته أن خلق لكم من أنفسكم أزواجا..."
+        AYAH_END   = ثانية نهايتها "...لآيات لقوم يتفكرون"
+        طريقة معرفة الرقم بسهولة:
+        1) افتحي هذا الرابط في المتصفح:
+           https://server8.mp3quran.net/download/lhdan/030.mp3
+        2) شغّلي الملف واسحبي مؤشر التشغيل لين توصلي لبداية الآية (٢١) ونهايتها،
+           وشوفي عداد الوقت (مثلاً 02:14) وحوّليه لثواني (2:14 = 134).
+        3) عدّلي الرقمين تحت بس، وخلاص كل شي بيشتغل صح. */
+    const AYAH_START = 282;  // 4:42
+    const AYAH_END   = 308;  // 5:08
+
+    function playAyah(){
+      if (bgAudio.currentTime < AYAH_START || bgAudio.currentTime >= AYAH_END){
+        bgAudio.currentTime = AYAH_START;
+      }
+      bgAudio.play().then(() => {
+        audioToggle.classList.add('playing');
+      }).catch(() => { /* تشغيل تلقائي محظور من المتصفح، الزائر يقدر يضغط زر الصوت */ });
+    }
+
+    bgAudio.addEventListener('loadedmetadata', () => { bgAudio.currentTime = AYAH_START; });
+
+    /* تكرار الآية فقط: لما توصل نهايتها ترجع تلقائيًا لبدايتها */
+    bgAudio.addEventListener('timeupdate', () => {
+      if (bgAudio.currentTime >= AYAH_END){
+        bgAudio.currentTime = AYAH_START;
+        if (!bgAudio.paused) bgAudio.play();
+      }
+    });
+
     function openInvitation(){
       document.getElementById('intro').classList.add('hide');
       document.body.style.overflow = 'auto';
-      bgAudio.play().then(() => {
-        audioToggle.classList.add('playing');
-      }).catch(() => { /* تشغيل تلقائي محظور من المتصفح، يمكن للزائر الضغط على زر الصوت */ });
+      playAyah();
     }
 
     document.body.style.overflow = 'hidden';
 
     audioToggle.addEventListener('click', () => {
       if (bgAudio.paused){
-        bgAudio.play();
-        audioToggle.classList.add('playing');
+        playAyah();
       } else {
         bgAudio.pause();
         audioToggle.classList.remove('playing');
@@ -421,27 +451,33 @@
     }, { threshold: 0.15 });
     revealEls.forEach(el => io.observe(el));
 
-    /* ---------- العد التنازلي: 21 أغسطس 2026 - 6:00 مساءً ---------- */
+    /* ---------- العد: قبل الزواج تنازلي، وبعده تصاعدي منذ عقد القران ---------- */
     const weddingDate = new Date("August 21, 2026 18:00:00").getTime();
+    const countdownTitle = document.getElementById('countdownTitle');
+    let modeSet = null; /* 'before' | 'after' — لتحديث العنوان مرة واحدة فقط */
 
     function updateCountdown(){
-      const distance = weddingDate - new Date().getTime();
-      const ids = ['days','hours','minutes','seconds'];
+      const now = new Date().getTime();
+      const diff = weddingDate - now;
+      const elapsed = Math.abs(diff);
 
-      if (distance <= 0){
-        ids.forEach(id => document.getElementById(id).textContent = '00');
-        return;
-      }
-
-      const days    = Math.floor(distance / (1000*60*60*24));
-      const hours   = Math.floor((distance % (1000*60*60*24)) / (1000*60*60));
-      const minutes = Math.floor((distance % (1000*60*60)) / (1000*60));
-      const seconds = Math.floor((distance % (1000*60)) / 1000);
+      const days    = Math.floor(elapsed / (1000*60*60*24));
+      const hours   = Math.floor((elapsed % (1000*60*60*24)) / (1000*60*60));
+      const minutes = Math.floor((elapsed % (1000*60*60)) / (1000*60));
+      const seconds = Math.floor((elapsed % (1000*60)) / 1000);
 
       document.getElementById('days').textContent    = String(days).padStart(2,'0');
       document.getElementById('hours').textContent   = String(hours).padStart(2,'0');
       document.getElementById('minutes').textContent = String(minutes).padStart(2,'0');
       document.getElementById('seconds').textContent = String(seconds).padStart(2,'0');
+
+      if (diff > 0 && modeSet !== 'before'){
+        countdownTitle.textContent = 'موعدنا يقترب';
+        modeSet = 'before';
+      } else if (diff <= 0 && modeSet !== 'after'){
+        countdownTitle.textContent = 'منذ أن أصبحنا زوجين، وقتنا معًا';
+        modeSet = 'after';
+      }
     }
 
     updateCountdown();
